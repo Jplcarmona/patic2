@@ -11,3 +11,4 @@ ipywidgets
 scikit-learn
 xgboost
 google-cloud-bigquery
+matplotlib
