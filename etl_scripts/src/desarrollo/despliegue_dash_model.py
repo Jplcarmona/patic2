@@ -18,7 +18,7 @@ st.title("🍽️ Restaurant Sales Analytics & Prediction Dashboard")
 @st.cache_data
 def load_data():
     try:
-        path_data = r'etl_scripts\src\desarrollo\restaurant_sales_data.csv'
+        path_data = 'etl_scripts/src/desarrollo/restaurant_sales_data.csv'
         df = pd.read_csv(path_data)
         print(f"Datos cargados desde {path_data}")
         return df
