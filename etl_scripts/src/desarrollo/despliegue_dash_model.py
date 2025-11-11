@@ -5,10 +5,8 @@ import matplotlib.pyplot as plt
 import calendar
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-#from datetime import timedelta
 import warnings
 warnings.filterwarnings("ignore")
-#from prophet import Prophet
 
 
 # Configuración general
