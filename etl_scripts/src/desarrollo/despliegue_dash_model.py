@@ -306,7 +306,7 @@ with tab2:
     # 1️⃣ Entrenamiento del modelo SARIMAX
     # =========================
     
-    st.cache_data
+    @st.cache_data
     def train_sarimax(df_total, exog_cols):
         model = SARIMAX(df_total["sales"], exog= df_total[exog_cols], order=(0, 0, 2), seasonal_order=(1, 1, 2, 7), enforce_stationarity=False, enforce_invertibility=False # ciclo semanal (7 días)
         )
