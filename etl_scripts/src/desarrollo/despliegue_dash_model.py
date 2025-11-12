@@ -108,7 +108,7 @@ cyclic_cols = ['day_of_week_sin', 'day_of_week_cos', 'month_sin', 'month_cos',
 
 # Pestañas
 
-tab1, tab2= st.tabs(["📈 Dashboard", "🤖 Predicción de Ventas Total"])
+tab1, tab2, tab3 = st.tabs(["📈 Dashboard", "🤖 Predicción de Ventas Total", "🏆 Simulador de Ventas"])
 
 with tab1:
 
@@ -197,8 +197,6 @@ with tab1:
     if df_filtered.empty:
         st.warning("⚠️ No hay datos que coincidan con los filtros seleccionados.")
         st.stop()
-        
-
 
     # GRÁFICOS
     day_mapping = {1:'Monday', 2:'Tuesday', 3:'Wednesday', 4:'Thursday', 5:'Friday', 6:'Saturday', 7:'Sunday'}
@@ -330,9 +328,15 @@ with tab2:
     forecast_ci = forecast.conf_int()
 
     # Gráfico 1: Histórico
-    st.subheader("📈 Tendencia Histórica de Ventas")
+    # Gráfico Combinado: Histórico y Pronóstico
+    st.subheader("📊 Tendencia Histórica y Pronóstico de Ventas")
     fig1, ax1 = plt.subplots(figsize=(12, 6))
 
+    # Gráfico 1: Histórico
+
+    st.subheader("📈 Tendencia Histórica de Ventas")
+    fig1, ax1 = plt.subplots(figsize=(12, 6))
+    
     # Usamos solo los datos hasta la última fecha conocida (last_date)
     df_historico = df_total[df_total["date"] <= last_date]
 
@@ -350,27 +354,62 @@ with tab2:
     st.subheader(f"🔮 Pronóstico Total de Ventas del {start_date.strftime('%d %B %Y')} al {end_date.strftime('%d %B %Y')}")
     fig2, ax2 = plt.subplots(figsize=(12, 6))
 
-    ax2.plot(forecast_index, forecast_mean, label="Pronóstico", color="orange", linestyle="--")
-    ax2.fill_between(
-        forecast_index, 
-        forecast_ci["lower sales"], 
-        forecast_ci["upper sales"], 
-        color="orange", 
-        alpha=0.2, 
-        label="Intervalo de Confianza 95%"
-    )
-    ax2.set_title(f"Pronóstico de Ventas", fontsize=14)
-    ax2.set_ylabel("Ventas ($)")
-    ax2.set_xlabel("Fecha")
-    ax2.legend()
-    st.pyplot(fig2)
+    if forecast_days <= 1:
+        st.warning("⚠️ No se puede graficar la tendencia. Se necesita especificar un rango de fechas (al menos 2 días) para visualizar una línea de pronóstico. Por favor, amplía el rango seleccionado.")
+    else:
+        
+        ax2.plot(forecast_index, forecast_mean, label="Pronóstico", color="orange", linestyle="--")
+        ax2.fill_between(
+            forecast_index, 
+            forecast_ci["lower sales"], 
+            forecast_ci["upper sales"], 
+            color="orange", 
+            alpha=0.2, 
+            label="Intervalo de Confianza 95%"
+        )
+        ax2.set_title(f"Pronóstico de Ventas", fontsize=14)
+        ax2.set_ylabel("Ventas ($)")
+        ax2.set_xlabel("Fecha")
+        ax2.legend()
+        st.pyplot(fig2)
 
     # Métricas resumidas
     total_forecasted = forecast_mean.sum()
     st.metric("📈 Ventas Totales Proyectadas", f"${total_forecasted:,.0f}")
     
+with tab3:
+    
+    st.header("🏆 Simulador de Ventas Personalizado")
+
+    sim_start_date, sim_end_date = st.date_input(
+    "📅 Selecciona el rango de fechas para la simulación",
+    value=[pd.to_datetime("2025-12-24").date(), pd.to_datetime("2025-12-31").date()],
+    key="simulador_rango_fechas")
+    
+    sim_start_date = pd.Timestamp(sim_start_date)
+    sim_end_date = pd.Timestamp(sim_end_date)
+    
+    if sim_start_date > sim_end_date:
+        st.error("⚠️ La fecha inicial no puede ser mayor que la fecha final.")
+        st.stop()
+    
+    sim_forecast_days = (sim_end_date - sim_start_date).days + 1   
+    
+    # Crear dataframe futuro para el rango elegido
+    sim_forecast_index = pd.date_range(start=sim_start_date, periods=sim_forecast_days, freq='D')
+    sim_future_df = pd.DataFrame({"date": sim_forecast_index})
+    sim_future_df["day_of_week"] = sim_future_df["date"].dt.dayofweek
+    sim_future_df["day_of_month"] = sim_future_df["date"].dt.day
+    sim_future_df["month"] = sim_future_df["date"].dt.month
+    sim_future_df = transformaciones_ciclicas(sim_future_df)
+    exog_sim_future = sim_future_df[cyclic_cols]
+    
+    # Generar pronóstico para el rango del simulador (usando el mismo modelo SARIMAX entrenado)
+    sim_forecast = results.get_forecast(steps=sim_forecast_days, exog=exog_sim_future)
+    sim_forecast_mean = sim_forecast.predicted_mean
+    
     # Simulador de múltiples productos según la proyección
-    st.subheader(f"🏆 Simulador de Ventas para el rango {start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')}")
+    st.subheader(f"🏆 Simulador de Ventas para el rango {sim_start_date.strftime('%d %B %Y')} - {sim_end_date.strftime('%d %B %Y')}")
 
     # Promedio histórico de participación por producto
     product_share = df.groupby("menu_item_name")["sales"].sum() / df["sales"].sum()
@@ -380,12 +419,17 @@ with tab2:
     if "productos" not in st.session_state:
         st.session_state["productos"] = [{"producto": product_list[0], "precio": 1.0}]
 
+    if "mostrar_resultados" not in st.session_state:
+        st.session_state["mostrar_resultados"] = False
+
     # Botón para agregar producto
     if st.button("➕ Agregar producto"):
         st.session_state["productos"].append({"producto": product_list[0], "precio": 1.0})
+        st.session_state["mostrar_resultados"] = False
 
     # Mostrar lista de productos con precio
     st.markdown("### 🧾 Productos seleccionados:")
+    eliminar = None
     for i, p in enumerate(st.session_state["productos"]):
         cols = st.columns([3, 2, 1])
         st.session_state["productos"][i]["producto"] = cols[0].selectbox(
@@ -404,12 +448,19 @@ with tab2:
 
         # Botón eliminar producto individual
         if cols[2].button("❌", key=f"eliminar_{i}"):
-            st.session_state["productos"].pop(i)
+            eliminar = i
+            st.session_state["mostrar_resultados"] = False
+    
+    if eliminar is not None:
+        st.session_state["productos"].pop(eliminar)
 
     st.markdown("---")
 
     # Botón para predecir
     if st.button("🔮 Predecir Ventas"):
+        st.session_state["mostrar_resultados"] = True
+        
+    if st.session_state["mostrar_resultados"]:
         resultados = []
         total_ventas = 0
         total_unidades = 0
@@ -446,7 +497,7 @@ with tab2:
         )
 
         st.success(
-            f"📅 Rango simulado: {start_date.strftime('%d %B %Y')} - {end_date.strftime('%d %B %Y')}\n\n"
+            f"📅 Rango simulado: {sim_start_date.strftime('%d %B %Y')} - {sim_end_date.strftime('%d %B %Y')}\n\n"
             f"💰 **Total de ventas proyectadas:** ${total_ventas:,.0f}\n"
             f"📦 **Total de unidades estimadas:** {total_unidades:,}"
     )
