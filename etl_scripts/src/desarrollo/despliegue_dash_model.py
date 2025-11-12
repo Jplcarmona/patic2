@@ -28,6 +28,7 @@ def load_data():
 
 # FUNCIONES DE TRANSFORMACIÓN 
 
+@st.cache_data
 def add_time_features(df):
     df["date"] = pd.to_datetime(df["date"], format="%m/%d/%Y", errors="coerce")
 
@@ -70,16 +71,19 @@ def add_time_features(df):
 
     return df
 
+@st.cache_data
 def eliminar_variables(df):
     cols_drop = ['key_ingredients_tags','restaurant_id', 'restaurant_type',
                  'observed_market_price', 'typical_ingredient_cost']
     return df.drop(columns=[c for c in cols_drop if c in df.columns], errors='ignore')
 
+@st.cache_data
 def replace_missing_values(df):
     missing_values = ["", " ", "NA", "N/A", "NULL", "None","Desconocido", "null", "none", "na", "n/a", "desconocido"]
     df.replace(missing_values, np.nan, inplace=True)
     return df
 
+@st.cache_data
 def transformaciones_ciclicas(df):
     for col in ['day_of_week', 'day_of_month', 'month']:
         if col in df.columns:
@@ -160,11 +164,6 @@ with tab1:
 
     selected_meal = st.sidebar.multiselect("Tipo de comida:", df["meal_type"].unique(), default=st.session_state["temp_filters"]["meal_type"])
     st.session_state["temp_filters"]["meal_type"] = selected_meal
-
-    if st.sidebar.button("✅ Aplicar filtros"):
-        # Guardamos filtros aplicados
-        st.session_state["applied_filters"] = st.session_state["temp_filters"].copy()
-
 
     # --- Aplicar filtros ---
     df_filtered = df.copy()
@@ -328,11 +327,6 @@ with tab2:
     forecast_ci = forecast.conf_int()
 
     # Gráfico 1: Histórico
-    # Gráfico Combinado: Histórico y Pronóstico
-    st.subheader("📊 Tendencia Histórica y Pronóstico de Ventas")
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
-
-    # Gráfico 1: Histórico
 
     st.subheader("📈 Tendencia Histórica de Ventas")
     fig1, ax1 = plt.subplots(figsize=(12, 6))
@@ -426,6 +420,7 @@ with tab3:
     if st.button("➕ Agregar producto"):
         st.session_state["productos"].append({"producto": product_list[0], "precio": 1.0})
         st.session_state["mostrar_resultados"] = False
+        st.rerun()
 
     # Mostrar lista de productos con precio
     st.markdown("### 🧾 Productos seleccionados:")
